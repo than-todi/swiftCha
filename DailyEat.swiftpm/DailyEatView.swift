@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 struct DailyEatView: View {
 
@@ -11,7 +12,6 @@ struct DailyEatView: View {
     @State private var todayFood: Food?
     @State private var eatenFoods: [Food] = []
 
-    // Calories per meal
     @State private var breakfastCal = 0
     @State private var lunchCal = 0
     @State private var dinnerCal = 0
@@ -26,17 +26,20 @@ struct DailyEatView: View {
         max(targetCalories - totalCalories, 0)
     }
 
+    var progress: Double {
+        guard targetCalories > 0 else { return 0 }
+        return Double(totalCalories) / Double(targetCalories)
+    }
+
     var body: some View {
         NavigationStack {
             ScrollView {
-                VStack(spacing: 24) {
+                VStack(spacing: 28) {
 
-                    // MARK: Header
                     Text("DAILY FOOD")
                         .font(.system(size: 28, weight: .bold))
                         .foregroundColor(.yellow)
 
-                    // MARK: Meal Picker
                     Picker("Meal", selection: $selectedMeal) {
                         Text("Breakfast").tag("Breakfast")
                         Text("Lunch").tag("Lunch")
@@ -48,12 +51,10 @@ struct DailyEatView: View {
                     .background(Color(.darkGray))
                     .cornerRadius(12)
 
-                    // MARK: Food Card
                     if let food = todayFood {
                         modernFoodCard(food)
                     }
 
-                    // MARK: Generate Buttons
                     HStack(spacing: 16) {
                         modernButton(title: "Main Dish") {
                             todayFood = mainFoods
@@ -68,14 +69,31 @@ struct DailyEatView: View {
                         }
                     }
 
-                    // MARK: Dashboard
-                    VStack(spacing: 12) {
-                        Text("Consumed")
-                            .foregroundColor(.gray)
+                    // MARK: Progress Ring Dashboard
+                    VStack(spacing: 18) {
 
-                        Text("\(totalCalories) kcal")
-                            .font(.system(size: 36, weight: .bold))
-                            .foregroundColor(.yellow)
+                        ZStack {
+                            Circle()
+                                .stroke(Color.gray.opacity(0.3), lineWidth: 14)
+
+                            Circle()
+                                .trim(from: 0, to: min(progress, 1))
+                                .stroke(Color.yellow,
+                                        style: StrokeStyle(lineWidth: 14,
+                                                           lineCap: .round))
+                                .rotationEffect(.degrees(-90))
+                                .animation(.easeInOut, value: progress)
+
+                            VStack {
+                                Text("\(totalCalories)")
+                                    .font(.system(size: 26, weight: .bold))
+                                    .foregroundColor(.yellow)
+
+                                Text("kcal")
+                                    .foregroundColor(.gray)
+                            }
+                        }
+                        .frame(width: 160, height: 160)
 
                         Text("Remaining: \(remainingCalories) kcal")
                             .foregroundColor(
@@ -87,7 +105,6 @@ struct DailyEatView: View {
                     .background(Color(.darkGray))
                     .cornerRadius(20)
 
-                    // MARK: Target Stepper
                     VStack(alignment: .leading) {
                         Text("Daily Target")
                             .foregroundColor(.gray)
@@ -103,12 +120,12 @@ struct DailyEatView: View {
                     .background(Color(.darkGray))
                     .cornerRadius(16)
 
-                    // MARK: Add Food
                     if let food = todayFood {
-                        Button(action: {
+                        Button {
                             addCalories(food)
                             eatenFoods.append(food)
-                        }) {
+                            UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                        } label: {
                             Text("ADD FOOD")
                                 .fontWeight(.bold)
                                 .frame(maxWidth: .infinity)
@@ -119,10 +136,10 @@ struct DailyEatView: View {
                         }
                     }
 
-                    // MARK: Save
-                    Button(action: {
+                    Button {
                         saveTodayLog()
-                    }) {
+                        UINotificationFeedbackGenerator().notificationOccurred(.success)
+                    } label: {
                         Text("SAVE TODAY")
                             .fontWeight(.bold)
                             .frame(maxWidth: .infinity)
@@ -132,13 +149,18 @@ struct DailyEatView: View {
                             .cornerRadius(14)
                     }
 
-                    // MARK: Calendar
+                    Button("RESET TODAY") {
+                        resetToday()
+                    }
+                    .foregroundColor(.red)
+                    .font(.caption)
+
                     NavigationLink(destination: CalendarView()) {
                         Text("VIEW CALENDAR")
                             .fontWeight(.bold)
                             .frame(maxWidth: .infinity)
                             .padding()
-                            .background(Color.white.opacity(0.1))
+                            .background(Color.white.opacity(0.08))
                             .foregroundColor(.yellow)
                             .cornerRadius(14)
                     }
@@ -159,14 +181,24 @@ struct DailyEatView: View {
     }
 
     func saveTodayLog() {
+        let today = todayString()
+
+        // ลบ log ของวันนี้ออกก่อน (กันซ้ำ)
+        let filteredLogs = dailyLogsRaw
+            .split(separator: "|")
+            .filter { !$0.contains(today) }
+
         let log = DailyLog(
-            date: todayString(),
+            date: today,
             foods: eatenFoods.map { $0.name },
             totalCalories: totalCalories
         )
 
         if let data = try? JSONEncoder().encode(log),
            let json = String(data: data, encoding: .utf8) {
+
+            dailyLogsRaw = filteredLogs.joined(separator: "|")
+            if !dailyLogsRaw.isEmpty { dailyLogsRaw += "|" }
             dailyLogsRaw += json + "|"
         }
     }
@@ -178,6 +210,14 @@ struct DailyEatView: View {
         case "Dinner": dinnerCal += food.calories
         default: snackCal += food.calories
         }
+    }
+
+    func resetToday() {
+        breakfastCal = 0
+        lunchCal = 0
+        dinnerCal = 0
+        snackCal = 0
+        eatenFoods.removeAll()
     }
 
     // MARK: - Components
@@ -192,8 +232,7 @@ struct DailyEatView: View {
             Text("\(food.type.rawValue) • \(food.category)")
                 .foregroundColor(.gray)
 
-            Divider()
-                .background(Color.gray)
+            Divider().background(Color.gray)
 
             Text("🔥 \(food.calories) kcal")
                 .foregroundColor(.white)
