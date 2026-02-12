@@ -1,20 +1,17 @@
-//
-//  Dailylog.swift
-//  DailyEat
-//
-//  Created by USER922-22 on 7/2/2569 BE.
-//
-
 import Foundation
 
 struct DailyLog: Identifiable, Codable {
-    let id: UUID
-    let date: String          // dd/MM/yyyy
-    let foods: [String]
-    let totalCalories: Int
+    var id: UUID
+    var date: String          // dd/MM/yyyy
+    var foods: [String]
+    var totalCalories: Int
 
-    init(date: String, foods: [String], totalCalories: Int) {
-        self.id = UUID()
+    init(id: UUID = UUID(),
+         date: String,
+         foods: [String],
+         totalCalories: Int) {
+
+        self.id = id
         self.date = date
         self.foods = foods
         self.totalCalories = totalCalories

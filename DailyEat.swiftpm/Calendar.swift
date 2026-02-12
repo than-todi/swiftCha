@@ -13,6 +13,13 @@ struct CalendarView: View {
     private let calendar = Calendar.current
     private let columns = Array(repeating: GridItem(.flexible()), count: 7)
 
+    // MARK: - Date Formatter (สร้างครั้งเดียว)
+    private let formatter: DateFormatter = {
+        let f = DateFormatter()
+        f.dateFormat = "dd/MM/yyyy"
+        return f
+    }()
+
     // MARK: - Load Logs
     var logs: [DailyLog] {
         dailyLogsRaw
@@ -24,11 +31,11 @@ struct CalendarView: View {
                 )
             }
     }
-    // MARK: - Monthly Summary
 
+    // MARK: - Monthly Summary
     var currentMonthLogs: [DailyLog] {
         logs.filter { log in
-            guard let date = dateFromString(log.date) else { return false }
+            guard let date = formatter.date(from: log.date) else { return false }
             return calendar.isDate(date, equalTo: currentMonth, toGranularity: .month)
         }
     }
@@ -43,11 +50,11 @@ struct CalendarView: View {
         currentMonthLogs.filter { $0.totalCalories >= targetCalories }.count
     }
 
+    // คิด % จากจำนวนวันทั้งเดือน
     var successRate: Int {
-        guard !currentMonthLogs.isEmpty else { return 0 }
-        return Int((Double(successDays) / Double(currentMonthLogs.count)) * 100)
+        guard daysInMonth > 0 else { return 0 }
+        return Int((Double(successDays) / Double(daysInMonth)) * 100)
     }
-
 
     // MARK: - Month Info
 
@@ -60,9 +67,10 @@ struct CalendarView: View {
         return calendar.date(from: components) ?? Date()
     }
 
+    // ทำให้ Mon = 0
     var startingSpaces: Int {
         let weekday = calendar.component(.weekday, from: firstDayOfMonth)
-        return (weekday + 5) % 7   // Mon = 0
+        return (weekday + 5) % 7
     }
 
     // MARK: - Body
@@ -70,16 +78,16 @@ struct CalendarView: View {
 
         ScrollView {
             VStack(spacing: 24) {
-                monthlySummaryCard()
+
                 // MARK: Month Navigation
                 HStack {
+
                     Button(action: previousMonth) {
                         Image(systemName: "chevron.left")
                             .foregroundColor(.yellow)
                             .padding()
                             .background(Color(.darkGray))
                             .clipShape(Circle())
-                        
                     }
 
                     Spacer()
@@ -97,15 +105,17 @@ struct CalendarView: View {
                             .background(Color(.darkGray))
                             .clipShape(Circle())
                     }
-                    
+
                     Button("Today") {
-                        withAnimation {
+                        withAnimation(.spring()) {
                             currentMonth = Date()
                         }
                     }
                     .foregroundColor(.yellow)
-
                 }
+
+                // MARK: Monthly Summary
+                monthlySummaryCard()
 
                 // MARK: Target
                 VStack(alignment: .leading, spacing: 8) {
@@ -126,16 +136,19 @@ struct CalendarView: View {
                 // MARK: Calendar Grid
                 LazyVGrid(columns: columns, spacing: 12) {
 
+                    // Weekday Header
                     ForEach(["Mon","Tue","Wed","Thu","Fri","Sat","Sun"], id:\.self) { day in
                         Text(day)
                             .font(.caption)
                             .foregroundColor(.gray)
                     }
 
+                    // Empty Spaces
                     ForEach(0..<startingSpaces, id:\.self) { _ in
                         Color.clear.frame(height: 65)
                     }
 
+                    // Days
                     ForEach(1...daysInMonth, id:\.self) { day in
                         dayCell(day: day)
                     }
@@ -175,8 +188,10 @@ struct CalendarView: View {
 
         let dateString = formattedDate(day: day)
         let log = logs.first { $0.date == dateString }
-
         let hitTarget = (log?.totalCalories ?? 0) >= targetCalories
+
+        let date = formatter.date(from: dateString) ?? Date()
+        let isToday = calendar.isDate(date, inSameDayAs: Date())
 
         return VStack(spacing: 4) {
 
@@ -193,9 +208,19 @@ struct CalendarView: View {
         .frame(height: 65)
         .frame(maxWidth: .infinity)
         .background(
-            log == nil
-            ? Color.gray.opacity(0.25)
-            : (hitTarget ? Color.yellow : Color.orange)
+            ZStack {
+                if isToday {
+                    RoundedRectangle(cornerRadius: 14)
+                        .stroke(Color.yellow, lineWidth: 3)
+                }
+
+                RoundedRectangle(cornerRadius: 14)
+                    .fill(
+                        log == nil
+                        ? Color.gray.opacity(0.25)
+                        : (hitTarget ? Color.yellow : Color.orange)
+                    )
+            }
         )
         .cornerRadius(14)
         .onTapGesture {
@@ -206,7 +231,7 @@ struct CalendarView: View {
         }
     }
 
-    // MARK: - Month Navigation Logic
+    // MARK: - Navigation Logic
 
     func previousMonth() {
         if let newDate = calendar.date(byAdding: .month, value: -1, to: currentMonth) {
@@ -215,8 +240,6 @@ struct CalendarView: View {
             }
         }
     }
-    
-    
 
     func nextMonth() {
         if let newDate = calendar.date(byAdding: .month, value: 1, to: currentMonth) {
@@ -233,16 +256,13 @@ struct CalendarView: View {
         var newComponents = components
         newComponents.day = day
         let date = calendar.date(from: newComponents) ?? Date()
-
-        let formatter = DateFormatter()
-        formatter.dateFormat = "dd/MM/yyyy"
         return formatter.string(from: date)
     }
 
     func monthYearString() -> String {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "MMMM yyyy"
-        return formatter.string(from: currentMonth).uppercased()
+        let f = DateFormatter()
+        f.dateFormat = "MMMM yyyy"
+        return f.string(from: currentMonth).uppercased()
     }
 
     // MARK: - Detail Sheet
@@ -276,6 +296,7 @@ struct CalendarView: View {
         .padding()
         .background(Color.black.ignoresSafeArea())
     }
+
     // MARK: - Monthly Summary Card
 
     func monthlySummaryCard() -> some View {
@@ -312,12 +333,4 @@ struct CalendarView: View {
         }
         .frame(maxWidth: .infinity)
     }
-
-    
-    func dateFromString(_ string: String) -> Date? {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "dd/MM/yyyy"
-        return formatter.date(from: string)
-    }
-
 }

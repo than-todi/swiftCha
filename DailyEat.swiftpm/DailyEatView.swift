@@ -196,7 +196,7 @@ struct DailyEatView: View {
 
         if let data = try? JSONEncoder().encode(log),
            let json = String(data: data, encoding: .utf8) {
-
+ 
             dailyLogsRaw = filteredLogs.joined(separator: "|")
             if !dailyLogsRaw.isEmpty { dailyLogsRaw += "|" }
             dailyLogsRaw += json + "|"
